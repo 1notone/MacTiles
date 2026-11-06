@@ -1,0 +1,12 @@
+#!/bin/sh
+# Open MacTiles for the person at the screen. Installer runs this as root, so launch
+# in the logged-in user's session instead. Skipped for unattended installs (no one logged in).
+APP="$2/MacTiles.app"
+[ -d "$APP" ] || APP="/Applications/MacTiles.app"
+
+USER_NAME=$(/usr/bin/stat -f%Su /dev/console)
+if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ] && [ "$USER_NAME" != "loginwindow" ] && [ "$USER_NAME" != "_mbsetupuser" ]; then
+    USER_ID=$(/usr/bin/id -u "$USER_NAME")
+    /bin/launchctl asuser "$USER_ID" /usr/bin/sudo -u "$USER_NAME" /usr/bin/open "$APP" || true
+fi
+exit 0

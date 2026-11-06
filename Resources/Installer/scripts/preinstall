@@ -1,0 +1,5 @@
+#!/bin/sh
+# Close a running MacTiles so its files can be replaced.
+/usr/bin/pkill -x MacTiles 2>/dev/null || true
+sleep 1
+exit 0

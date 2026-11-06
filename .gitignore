@@ -1,0 +1,21 @@
+.build/
+build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+.DS_Store
+
+# Never commit signing or notarization secrets
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+*.provisionprofile
+AuthKey_*.p8
+.env
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp

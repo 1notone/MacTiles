@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>MacTiles</title>
+    <organization>io.github.mactiles</organization>
+
+    <!-- Always to /Applications on the startup disk; no "Customize" pane. -->
+    <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
+    <!-- Listing arm64 keeps Installer native on Apple silicon (no Rosetta prompt);
+         checkMac() below turns Intel Macs away with a clear message. -->
+    <options customize="never" require-scripts="false" rootVolumeOnly="true" hostArchitectures="arm64,x86_64"/>
+
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="14.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <installation-check script="checkMac()"/>
+    <script><![CDATA[
+        function checkMac() {
+            if (system.sysctl('hw.optional.arm64') != 1) {
+                my.result.type = 'Fatal';
+                my.result.title = 'MacTiles needs a Mac with Apple silicon';
+                my.result.message = 'This version of MacTiles runs on Macs with an M-series chip.';
+                return false;
+            }
+            return true;
+        }
+    ]]></script>
+
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="LICENSE.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+
+    <choices-outline>
+        <line choice="default">
+            <line choice="io.github.mactiles.MacTiles.pkg"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="io.github.mactiles.MacTiles.pkg" visible="false">
+        <pkg-ref id="io.github.mactiles.MacTiles.pkg"/>
+    </choice>
+    <pkg-ref id="io.github.mactiles.MacTiles.pkg" version="__VERSION__" onConclusion="none">MacTiles-component.pkg</pkg-ref>
+</installer-gui-script>
