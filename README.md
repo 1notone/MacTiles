@@ -8,6 +8,8 @@ Like Windows 8, Start is always there: launch an app and Start slips behind it, 
 
 Native Swift + SwiftUI. No Electron, no web views, no telemetry, no accounts. Live tiles pause whenever Start is covered, so it costs next to nothing in the background.
 
+<p align="center"><img src="docs/MacTiles_Demo1.png" alt="The MacTiles Start screen" width="900"></p>
+
 > MacTiles is an independent project and is not affiliated with or endorsed by Microsoft. Windows is a trademark of the Microsoft group of companies.
 
 ## Features
