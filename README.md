@@ -35,7 +35,7 @@ Native Swift + SwiftUI. No Electron, no web views, no telemetry, no accounts. Li
 | Clock | Digital time & date, flips to an analog face | Local |
 | Calendar | Today's date; optionally your next events | EventKit (opt-in) |
 | Weather | Current conditions, high/low, 3-day forecast | [Open-Meteo](https://open-meteo.com) (free, no key) |
-| System | CPU % with sparkline, memory use | Mach host statistics |
+| System | CPU % with sparkline, memory use | Mac host statistics |
 | Battery | Charge, charging state, time remaining | IOKit |
 | Photos | Slideshow from a folder (default `~/Pictures`) | Local files |
 | News | Rotating headlines from any RSS/Atom feed | Your chosen feed |
