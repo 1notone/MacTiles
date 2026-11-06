@@ -2,7 +2,7 @@
 
 # MacTiles
 
-**A lightweight, open-source app launcher for Apple silicon Macs that brings back the Windows 8 Start screen** — flat colored tiles, named groups, smooth tile cascades, and **Live Tiles** that flip to show the time, weather, your next meeting, headlines, photos and system stats.
+**A lightweight, open-source app launcher for Apple silicon Macs that brings back the Windows 8 Start screen** — flat (or glossy) colored tiles, named groups, smooth tile cascades, and **Live Tiles** that flip to show the time, weather, your next meeting, headlines, photos and system stats.
 
 Like Windows 8, Start is always there: launch an app and Start slips behind it, staying on your desktop so it's what you see whenever your windows are closed or minimized. Press **⌥ Space** or click the Dock icon to bring it back to the front.
 
