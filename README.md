@@ -10,6 +10,10 @@ Native Swift + SwiftUI. No Electron, no web views, no telemetry, no accounts. Li
 
 <p align="center"><img src="docs/MacTiles_Demo1.png" alt="The MacTiles Start screen" width="900"></p>
 
+
+https://github.com/user-attachments/assets/b7c7e24b-57d5-421d-9da9-e4584aad411b
+
+
 > MacTiles is an independent project and is not affiliated with or endorsed by Microsoft. Windows is a trademark of the Microsoft group of companies.
 
 ## Features
