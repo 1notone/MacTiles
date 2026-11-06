@@ -51,13 +51,14 @@ enum WeatherAPI {
         let daily: Daily
     }
 
-    private struct GeoResponse: Decodable {
+    struct GeoResponse: Decodable {
         struct Result: Decodable {
             let name: String
             let latitude: Double
             let longitude: Double
             let admin1: String?
             let country: String?
+            let postcodes: [String]?
         }
         let results: [Result]?
     }
@@ -95,6 +96,55 @@ enum WeatherAPI {
         ]
         let (data, _) = try await URLSession.shared.data(from: c.url!)
         guard let r = try JSONDecoder().decode(GeoResponse.self, from: data).results?.first else { return nil }
+        return Place(name: r.name, latitude: r.latitude, longitude: r.longitude, admin1: r.admin1, country: r.country)
+    }
+
+    // MARK: ZIP and postal codes
+
+    /// The country postal codes are looked up in: your Mac's region (Settings → General → Language & Region).
+    static var postalCountry: String? { Locale.current.region?.identifier }
+
+    /// "60601", "60601-1234", "SW1A 1AA", "10115" look like postal codes; "Lisbon" doesn't.
+    static func looksLikePostalCode(_ s: String) -> Bool {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        guard (3...10).contains(t.count), t.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
+        return t.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) || $0 == " " || $0 == "-" }
+    }
+
+    /// Tidies a typed code: upper-cased, single spaces; a US ZIP+4 becomes its 5-digit ZIP.
+    static func normalizePostalCode(_ code: String, country: String?) -> String {
+        var t = code.trimmingCharacters(in: .whitespaces).uppercased()
+        t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        if country?.uppercased() == "US", let zip = t.range(of: #"^\d{5}"#, options: .regularExpression) {
+            t = String(t[zip])
+        }
+        return t
+    }
+
+    /// Looks up a ZIP or postal code (in `country`, if given) and returns its place.
+    static func lookupPostalCode(_ code: String, country: String? = postalCountry) async throws -> Place? {
+        let cleaned = normalizePostalCode(code, country: country)
+        guard !cleaned.isEmpty else { return nil }
+        var c = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")!
+        var items = [
+            URLQueryItem(name: "name", value: cleaned),
+            URLQueryItem(name: "count", value: "10"),
+            URLQueryItem(name: "language", value: "en"),
+            URLQueryItem(name: "format", value: "json"),
+        ]
+        if let country, country.count == 2 { items.append(URLQueryItem(name: "countryCode", value: country.uppercased())) }
+        c.queryItems = items
+        let (data, _) = try await URLSession.shared.data(from: c.url!)
+        return try placeForPostalCode(cleaned, in: data)
+    }
+
+    /// The result that lists this postal code; otherwise the first result.
+    static func placeForPostalCode(_ code: String, in data: Data) throws -> Place? {
+        let results = try JSONDecoder().decode(GeoResponse.self, from: data).results ?? []
+        let squash = { (s: String) in s.uppercased().replacingOccurrences(of: " ", with: "") }
+        let wanted = squash(code)
+        let match = results.first { ($0.postcodes ?? []).contains { squash($0) == wanted } } ?? results.first
+        guard let r = match else { return nil }
         return Place(name: r.name, latitude: r.latitude, longitude: r.longitude, admin1: r.admin1, country: r.country)
     }
 
@@ -149,17 +199,80 @@ struct Headline: Identifiable, Hashable {
     let link: URL?
 }
 
+struct FeedResult {
+    let title: String
+    let items: [Headline]
+    /// The feed's own address: differs from what was typed when a web page pointed to its feed.
+    let feedURL: String
+}
+
 enum FeedParser {
-    static func fetch(_ urlString: String) async throws -> (title: String, items: [Headline]) {
+    /// Reads a feed. Given a web page instead (bbc.com, theverge.com), follows the page's
+    /// own link to its feed.
+    static func fetch(_ urlString: String) async throws -> FeedResult {
         guard let url = URL(string: urlString), WebLink.isFetchable(url) else { throw URLError(.badURL) }
+        let data = try await download(url)
+        let parsed = parse(data)
+        if !parsed.items.isEmpty {
+            return FeedResult(title: parsed.title, items: parsed.items, feedURL: urlString)
+        }
+        let html = String(decoding: data.prefix(768_000), as: UTF8.self)
+        for feed in discoverFeeds(in: html, base: url).prefix(2) {
+            guard let data = try? await download(feed) else { continue }
+            let found = parse(data)
+            if !found.items.isEmpty {
+                return FeedResult(title: found.title, items: found.items, feedURL: feed.absoluteString)
+            }
+        }
+        throw URLError(.cannotParseResponse)
+    }
+
+    private static func download(_ url: URL) async throws -> Data {
+        guard WebLink.isFetchable(url) else { throw URLError(.badURL) }
         let (data, _) = try await URLSession.shared.data(from: url)
         guard data.count <= 5_000_000 else { throw URLError(.dataLengthExceedsMaximum) }
+        return data
+    }
+
+    /// RSS 2.0 or Atom → the feed's title and up to 15 headlines.
+    static func parse(_ data: Data) -> (title: String, items: [Headline]) {
         let delegate = FeedDelegate()
         let parser = XMLParser(data: data)
         parser.delegate = delegate
         parser.parse()
         return (delegate.channelTitle, Array(delegate.items.prefix(15)))
     }
+
+    /// Feeds a web page advertises: <link rel="alternate" type="application/rss+xml" href="…">.
+    static func discoverFeeds(in html: String, base: URL) -> [URL] {
+        guard let tagRegex = try? NSRegularExpression(pattern: #"<link\b[^>]*>"#, options: [.caseInsensitive]) else { return [] }
+        let ns = html as NSString
+        var found: [URL] = []
+        for match in tagRegex.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
+            let attrs = WebPage.attributes(of: ns.substring(with: match.range))
+            guard let rel = attrs["rel"]?.lowercased(), rel.split(separator: " ").contains("alternate"),
+                  let type = attrs["type"]?.lowercased(), type.contains("rss") || type.contains("atom"),
+                  let href = attrs["href"], let url = URL(string: href, relativeTo: base)?.absoluteURL,
+                  WebLink.isFetchable(url), !found.contains(url) else { continue }
+            found.append(url)
+        }
+        return found
+    }
+}
+
+/// Feeds offered in the News tile panel's "Popular feeds" menu.
+enum NewsFeeds {
+    static let defaultFeed = "https://feeds.bbci.co.uk/news/world/rss.xml"
+
+    static let popular: [(name: String, url: String)] = [
+        ("BBC News – World", defaultFeed),
+        ("BBC News – Technology", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
+        ("NPR News", "https://feeds.npr.org/1001/rss.xml"),
+        ("The New York Times", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
+        ("The Verge", "https://www.theverge.com/rss/index.xml"),
+        ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
+        ("Hacker News", "https://hnrss.org/frontpage"),
+    ]
 }
 
 final class FeedDelegate: NSObject, XMLParserDelegate {

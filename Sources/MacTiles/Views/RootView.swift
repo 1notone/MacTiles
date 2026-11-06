@@ -73,6 +73,14 @@ struct RootView: View {
         }
         .animation(.easeOut(duration: 0.15), value: launcher.webDraft?.id)
         .overlay {
+            if let draft = launcher.newsDraft {
+                NewsTileEditor(draft: draft)
+                    .id(draft.id)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: launcher.newsDraft?.id)
+        .overlay {
             if let draft = launcher.serviceDraft {
                 ServiceTileEditor(draft: draft)
                     .id(draft.id)

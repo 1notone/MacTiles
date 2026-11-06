@@ -22,7 +22,13 @@ run: app
 # Builds, copies to /Applications and launches (for development on this Mac).
 install: app
 	-osascript -e 'quit app "MacTiles"' 2>/dev/null
-	rm -rf /Applications/MacTiles.app
+	@# A copy put there by the installer package belongs to the system: replacing it needs your password.
+	@if [ -e /Applications/MacTiles.app ] && [ ! -w /Applications/MacTiles.app ]; then \
+		echo "MacTiles in /Applications was installed by the installer package; enter your password to replace it."; \
+		sudo rm -rf /Applications/MacTiles.app; \
+	else \
+		rm -rf /Applications/MacTiles.app; \
+	fi
 	ditto "$(APP)" /Applications/MacTiles.app
 	open /Applications/MacTiles.app
 	@echo "Installed to /Applications/MacTiles.app"

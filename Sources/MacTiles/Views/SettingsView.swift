@@ -9,6 +9,8 @@ struct SettingsView: View {
 
     @State private var cityQuery = ""
     @State private var cityStatus = ""
+    @State private var postalQuery = ""
+    @State private var newsFeedDraft = ""
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError = ""
     @State private var confirmReset = false
@@ -133,9 +135,19 @@ struct SettingsView: View {
                 LabeledContent("Weather city") {
                     HStack {
                         TextField("", text: $cityQuery, prompt: Text("e.g. Lisbon"))
+                            .textFieldStyle(.roundedBorder)
                             .frame(width: 180)
                             .onSubmit(findCity)
                         Button("Find", action: findCity)
+                    }
+                }
+                LabeledContent("Or ZIP / postal code") {
+                    HStack {
+                        TextField("", text: $postalQuery, prompt: Text(WeatherAPI.postalCountry == "US" ? "e.g. 60601" : "e.g. SW1A 1AA"))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+                            .onSubmit(findPostalCode)
+                        Button("Use", action: findPostalCode)
                     }
                 }
                 if !cityStatus.isEmpty {
@@ -149,8 +161,19 @@ struct SettingsView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                TextField("News feed (RSS or Atom URL)", text: $store.settings.newsFeed)
-                    .onSubmit { launcher.hub.liveSettingsChanged(active: launcher.tilesLive) }
+                LabeledContent("Default news feed") {
+                    HStack {
+                        TextField("", text: $newsFeedDraft, prompt: Text("RSS or Atom address"))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 260)
+                            .onSubmit(applyNewsFeed)
+                        Button("Apply", action: applyNewsFeed)
+                            .disabled(newsFeedDraft.trimmingCharacters(in: .whitespaces) == store.settings.newsFeed)
+                    }
+                }
+                Text("Used by News tiles that don't have their own feed. Right-click a News tile and choose Change Feed… to give it one; add more News tiles for more sources.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 LabeledContent("Photos folder") {
                     HStack {
                         Text((store.settings.photosFolder as NSString).abbreviatingWithTildeInPath)
@@ -187,6 +210,8 @@ struct SettingsView: View {
         .onChange(of: launcher.integrationRequest) { _, _ in takeIntegrationRequest() }
         .onAppear {
             cityQuery = store.settings.weatherCity ?? ""
+            postalQuery = store.settings.weatherPostalCode ?? ""
+            newsFeedDraft = store.settings.newsFeed
             hexDraft = store.settings.background
             // Open the system color panel on its wheel, without an opacity slider.
             NSColorPanel.shared.mode = .wheel
@@ -334,8 +359,63 @@ struct SettingsView: View {
         }
     }
 
+    private func applyNewsFeed() {
+        let typed = newsFeedDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = WebLink.normalize(typed), WebLink.isFetchable(url) else {
+            newsFeedDraft = store.settings.newsFeed
+            return
+        }
+        store.settings.newsFeed = url.absoluteString
+        newsFeedDraft = url.absoluteString
+        launcher.hub.liveSettingsChanged(active: launcher.tilesLive)
+    }
+
+    private func findPostalCode() {
+        let code = postalQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return }
+        guard WeatherAPI.looksLikePostalCode(code) else {
+            cityStatus = "“\(code)” doesn't look like a ZIP or postal code."
+            return
+        }
+        cityStatus = "Looking up \(code)…"
+        Task { @MainActor in
+            do {
+                guard let place = try await WeatherAPI.lookupPostalCode(code) else {
+                    cityStatus = "No place with the postal code “\(code)” was found" + Self.regionNote
+                    return
+                }
+                use(place, postalCode: WeatherAPI.normalizePostalCode(code, country: WeatherAPI.postalCountry))
+            } catch {
+                cityStatus = "Couldn't reach the weather service. Check your connection."
+            }
+        }
+    }
+
+    /// " in United States." — postal codes are looked up in your Mac's region.
+    private static var regionNote: String {
+        guard let region = WeatherAPI.postalCountry,
+              let name = Locale.current.localizedString(forRegionCode: region) else { return "." }
+        return " in \(name)."
+    }
+
+    private func use(_ place: Place, postalCode: String?) {
+        store.settings.weatherCity = place.name
+        store.settings.weatherLat = place.latitude
+        store.settings.weatherLon = place.longitude
+        store.settings.weatherPostalCode = postalCode
+        cityQuery = place.name
+        postalQuery = postalCode ?? ""
+        cityStatus = "Using \(place.label)" + (postalCode.map { " (\($0))" } ?? "")
+        launcher.hub.weather.refresh(settings: store.settings, force: true)
+    }
+
     private func findCity() {
         let q = cityQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A ZIP typed into the city box works too.
+        if WeatherAPI.looksLikePostalCode(q) {
+            postalQuery = q
+            return findPostalCode()
+        }
         guard !q.isEmpty else { return }
         cityStatus = "Searching…"
         Task { @MainActor in
@@ -344,12 +424,7 @@ struct SettingsView: View {
                     cityStatus = "No place called “\(q)” was found."
                     return
                 }
-                store.settings.weatherCity = place.name
-                store.settings.weatherLat = place.latitude
-                store.settings.weatherLon = place.longitude
-                cityQuery = place.name
-                cityStatus = "Using \(place.label)"
-                launcher.hub.weather.refresh(settings: store.settings, force: true)
+                use(place, postalCode: nil)
             } catch {
                 cityStatus = "Couldn't reach the weather service. Check your connection."
             }

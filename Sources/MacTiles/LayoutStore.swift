@@ -164,11 +164,38 @@ final class LayoutStore: ObservableObject {
     }
 
     func addLive(_ kind: TileKind) {
+        addToFirstGroup(Tile(kind: kind))
+    }
+
+    /// A News tile with its own feed; you can have as many as you like.
+    func addNews(feed: String, title: String?) {
+        addToFirstGroup(Tile(kind: .news, url: feed, title: title))
+    }
+
+    /// The distinct feeds the News tiles on Start are showing.
+    var newsFeeds: [String] { Self.newsFeeds(in: groups, default: settings.newsFeed) }
+
+    /// A News tile's feed: its own, or Settings' default for tiles that don't have one.
+    func newsFeed(of tile: Tile) -> String { Self.newsFeed(of: tile, default: settings.newsFeed) }
+
+    nonisolated static func newsFeed(of tile: Tile, default fallback: String) -> String {
+        let own = (tile.url ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return own.isEmpty ? fallback.trimmingCharacters(in: .whitespacesAndNewlines) : own
+    }
+
+    nonisolated static func newsFeeds(in groups: [TileGroup], default fallback: String) -> [String] {
+        var seen = Set<String>()
+        return groups.flatMap(\.tiles).filter { $0.kind == .news }
+            .map { newsFeed(of: $0, default: fallback) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    private func addToFirstGroup(_ tile: Tile) {
         var g = groups
         if let first = g.first {
-            Self.insert(Tile(kind: kind), at: .endOf(first.id), into: &g)
+            Self.insert(tile, at: .endOf(first.id), into: &g)
         } else {
-            g.append(TileGroup(name: "", tiles: [Tile(kind: kind)]))
+            g.append(TileGroup(name: "", tiles: [tile]))
         }
         groups = g
     }

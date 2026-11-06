@@ -387,14 +387,23 @@ final class ComfyMonitor: @unchecked Sendable {
     }
 
     private func listen(_ socket: URLSessionWebSocketTask) async {
-        while true {
-            lock.lock(); let idle = Date().timeIntervalSince(wantedAt) > 90; let current = task === socket; lock.unlock()
-            if idle || !current { break }
+        while shouldKeepListening(to: socket) {
             guard let message = try? await socket.receive() else { break }
             if case .string(let text) = message { handle(Data(text.utf8)) }     // binary frames are image previews
         }
         socket.cancel(with: .goingAway, reason: nil)
-        lock.lock(); if task === socket { task = nil }; lock.unlock()
+        forget(socket)
+    }
+
+    // The lock is only taken in these synchronous helpers, never across an await.
+    private func shouldKeepListening(to socket: URLSessionWebSocketTask) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return task === socket && Date().timeIntervalSince(wantedAt) <= 90
+    }
+
+    private func forget(_ socket: URLSessionWebSocketTask) {
+        lock.lock(); defer { lock.unlock() }
+        if task === socket { task = nil }
     }
 
     func handle(_ data: Data) {

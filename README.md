@@ -34,11 +34,11 @@ Native Swift + SwiftUI. No Electron, no web views, no telemetry, no accounts. Li
 |---|---|---|
 | Clock | Digital time & date, flips to an analog face | Local |
 | Calendar | Today's date; optionally your next events | EventKit (opt-in) |
-| Weather | Current conditions, high/low, 3-day forecast | [Open-Meteo](https://open-meteo.com) (free, no key) |
+| Weather | Current conditions, high/low, 3-day forecast, for a city or a ZIP / postal code | [Open-Meteo](https://open-meteo.com) (free, no key) |
 | System | CPU % with sparkline, memory use | Mac host statistics |
 | Battery | Charge, charging state, time remaining | IOKit |
 | Photos | Slideshow from a folder (default `~/Pictures`) | Local files |
-| News | Rotating headlines from any RSS/Atom feed | Your chosen feed |
+| News | Rotating headlines from any RSS/Atom feed. Add several, each with its own source (right-click → *Change Feed…*) | Your chosen feeds |
 | Desktop | Your current wallpaper; click to hide Start and use Finder's desktop | Local |
 
 Live tiles only poll while Start can be seen — not when it's hidden or covered by your windows. Weather refreshes at most every 15 minutes and news every 30.
@@ -206,8 +206,8 @@ MacTiles has no telemetry, analytics, accounts or servers of its own. It only co
 
 | Service | When | What it receives |
 |---|---|---|
-| [Open-Meteo](https://open-meteo.com) | Weather tile, and Settings → Find city | The city you search for, then its coordinates. Weather data by [Open-Meteo.com](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the free API is for non-commercial use. |
-| Your news feed (default: BBC News world headlines) | News tile | A normal request for the feed |
+| [Open-Meteo](https://open-meteo.com) | Weather tile, and Settings → Find / Use | The city or ZIP / postal code you look up, then its coordinates. Weather data by [Open-Meteo.com](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the free API is for non-commercial use. |
+| Your news feeds (default: BBC News world headlines) | News tiles | A normal request for each feed (or, when you enter a site's address, its page, to find the feed) |
 | Websites you pin as web tiles | When the tile is added or its icon refreshed | A request for the page and its icon |
 | Google's favicon service | Only if a site's own icon can't be found | That site's domain name |
 | Services you connect (Plex, Pi-hole, Home Assistant…) | While service tiles are on screen | Requests signed with the key or password you entered |

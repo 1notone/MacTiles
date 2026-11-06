@@ -64,6 +64,7 @@ final class Launcher: ObservableObject {
     @Published var showingApps = false
     /// The add/edit web tile panel, when it's open.
     @Published var webDraft: WebTileDraft?
+    @Published var newsDraft: NewsTileDraft?
     /// The add/edit service tile panel, when it's open.
     @Published var serviceDraft: ServiceTileDraft?
     /// Asks Settings to open the Integrations editor (adding, or editing one service).
@@ -164,6 +165,7 @@ final class Launcher: ObservableObject {
         query = ""
         showingApps = false
         webDraft = nil
+        newsDraft = nil
         serviceDraft = nil
         store.draggingID = nil
         store.draggingGroupID = nil
@@ -201,6 +203,7 @@ final class Launcher: ObservableObject {
         query = ""
         showingApps = false
         webDraft = nil
+        newsDraft = nil
         serviceDraft = nil
         w.orderOut(nil)
         updateLiveState()
@@ -335,7 +338,20 @@ final class Launcher: ObservableObject {
         if let url = integration.webURL { open(url: url) }
     }
 
+    /// Opens the News tile panel: choose a feed for a new tile, or change an existing tile's.
+    func addNewsTile() {
+        if !isFront { show() }
+        newsDraft = NewsTileDraft(tileID: nil, feed: store.settings.newsFeed, name: "")
+    }
+
+    func editNewsTile(_ tile: Tile) {
+        if !isFront { show() }
+        newsDraft = NewsTileDraft(tileID: tile.id, feed: store.newsFeed(of: tile), name: tile.title ?? "")
+    }
+
     func addLiveTile(_ kind: TileKind) {
+        // Each News tile can show its own source, so ask which one.
+        if kind == .news { return addNewsTile() }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { store.addLive(kind) }
         hub.refreshStale()
         if tilesLive { hub.setActive(true) }
@@ -566,10 +582,11 @@ final class Launcher: ObservableObject {
         // Renaming a group: that text field gets the keys.
         if w.firstResponder is NSText { return event }
 
-        // A panel (web or service tile) is open: Escape closes it, other keys stay with it.
-        if webDraft != nil || serviceDraft != nil {
+        // A panel (web, news or service tile) is open: Escape closes it, other keys stay with it.
+        if webDraft != nil || newsDraft != nil || serviceDraft != nil {
             guard event.keyCode == 53 else { return event }
             webDraft = nil
+            newsDraft = nil
             serviceDraft = nil
             return nil
         }
@@ -619,7 +636,6 @@ extension View {
             .environmentObject(launcher.catalog)
             .environmentObject(launcher.hub)
             .environmentObject(launcher.hub.weather)
-            .environmentObject(launcher.hub.news)
             .environmentObject(launcher.hub.system)
             .environmentObject(launcher.hub.battery)
             .environmentObject(launcher.hub.calendar)

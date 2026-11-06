@@ -158,7 +158,8 @@ struct TileView: View {
         case .photos:
             launcher.launch(path: "/System/Applications/Photos.app")
         case .news:
-            if let link = hub.news.current?.link { launcher.open(url: link) }
+            if let link = hub.news(for: tile).current?.link { launcher.open(url: link) }
+            else { launcher.editNewsTile(tile) }       // nothing loaded yet: maybe the feed is wrong
         case .desktop:
             launcher.showDesktop()
         case .web:
@@ -221,7 +222,12 @@ struct TileMenu: View {
         }
         if tile.kind == .weather {
             Divider()
+            Button("Change Location…") { launcher.openSettings() }
             Button(WeatherAPI.attribution) { launcher.open(url: WeatherAPI.attributionURL) }
+        }
+        if tile.kind == .news {
+            Divider()
+            Button("Change Feed…") { launcher.editNewsTile(tile) }
         }
         if tile.kind == .web {
             Divider()
@@ -245,6 +251,7 @@ struct TileMenu: View {
 struct TileContent: View {
     let tile: Tile
     let frame: CGSize
+    @EnvironmentObject private var hub: LiveHub
 
     /// Offsets each tile's flip timing so they don't all turn at once.
     private var phase: Double { Double(Palette.stableIndex(tile.id.uuidString, modulo: 40)) / 10 }
@@ -258,7 +265,7 @@ struct TileContent: View {
         case .system: SystemTile(size: tile.size, phase: phase)
         case .battery: BatteryTile(size: tile.size)
         case .photos: PhotosTile(size: tile.size, frame: frame)
-        case .news: NewsTile(size: tile.size)
+        case .news: NewsTile(size: tile.size, news: hub.news(for: tile), title: tile.title)
         case .desktop: DesktopTile(size: tile.size, frame: frame)
         case .web: WebTileContent(tile: tile, frame: frame)
         case .service: ServiceTileContent(tile: tile, frame: frame, phase: phase)

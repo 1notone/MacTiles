@@ -8,7 +8,8 @@ import SwiftUI
 final class LiveHub: ObservableObject {
     let store: LayoutStore
     let weather: WeatherProvider
-    let news: NewsProvider
+    /// One provider per feed, shared by News tiles showing the same feed.
+    private var newsByFeed: [String: NewsProvider] = [:]
     let system: SystemProvider
     let battery: BatteryProvider
     let calendar: CalendarProvider
@@ -18,7 +19,6 @@ final class LiveHub: ObservableObject {
     init(store: LayoutStore) {
         self.store = store
         weather = WeatherProvider()
-        news = NewsProvider()
         system = SystemProvider()
         battery = BatteryProvider()
         calendar = CalendarProvider()
@@ -26,21 +26,49 @@ final class LiveHub: ObservableObject {
         desktop = DesktopProvider()
     }
 
+    /// The headlines for one News tile.
+    func news(for tile: Tile) -> NewsProvider {
+        news(feed: store.newsFeed(of: tile))
+    }
+
+    private func news(feed: String) -> NewsProvider {
+        if let existing = newsByFeed[feed] { return existing }
+        let provider = NewsProvider()
+        newsByFeed[feed] = provider
+        return provider
+    }
+
     /// Network-backed tiles: refresh when stale (weather every 15 min, news every 30).
     func refreshStale() {
         if store.has(.weather) { weather.refresh(settings: store.settings) }
-        if store.has(.news) { news.refresh(feed: store.settings.newsFeed) }
+        let feeds = store.newsFeeds
+        for feed in feeds { news(feed: feed).refresh(feed: feed) }
+        // Feeds no tile shows any more.
+        for (feed, provider) in newsByFeed where !feeds.contains(feed) {
+            provider.stopRotating()
+            newsByFeed[feed] = nil
+        }
+        if isActive { startNewsRotation() }
     }
+
+    /// Several News tiles take turns rather than all changing headline at once.
+    private func startNewsRotation() {
+        for (offset, feed) in store.newsFeeds.enumerated() {
+            news(feed: feed).startRotating(delay: Double(offset % 4) * 2)
+        }
+    }
+
+    private var isActive = false
 
     private var heartbeat: Task<Void, Never>?
 
     func setActive(_ active: Bool) {
+        isActive = active
         if active {
             refreshStale()
             if store.has(.system) { system.start() }
             if store.has(.battery) { battery.start() }
             if store.has(.photos) { photos.start(folder: store.settings.photosFolder) }
-            if store.has(.news) { news.startRotating() }
             refreshLocal()
             // With "Keep Start on the desktop", Start can stay on screen for hours; keep the
             // weather, news, calendar and Desktop tiles current while it does.
@@ -60,7 +88,7 @@ final class LiveHub: ObservableObject {
             system.stop()
             battery.stop()
             photos.stop()
-            news.stopRotating()
+            for provider in newsByFeed.values { provider.stopRotating() }
         }
     }
 
@@ -70,9 +98,10 @@ final class LiveHub: ObservableObject {
         if store.has(.desktop) { desktop.refresh() }
     }
 
-    /// Settings → News feed or Photos folder changed: use the new one now, not the next time Start opens.
+    /// A News tile's feed, Settings' default feed or the Photos folder changed: use the new one
+    /// now, not the next time Start opens.
     func liveSettingsChanged(active: Bool) {
-        if store.has(.news) { news.refresh(feed: store.settings.newsFeed) }
+        refreshStale()
         if active, store.has(.photos) { photos.start(folder: store.settings.photosFolder) }
     }
 }
@@ -82,7 +111,7 @@ final class LiveHub: ObservableObject {
 @MainActor
 final class WeatherProvider: ObservableObject {
     @Published private(set) var now: WeatherNow?
-    @Published private(set) var status = "Choose a city in Settings"
+    @Published private(set) var status = "Choose a place in Settings"
     private var fetchedAt = Date.distantPast
     private var key = ""
     private var loading = false
@@ -90,7 +119,7 @@ final class WeatherProvider: ObservableObject {
     func refresh(settings s: AppSettings, force: Bool = false) {
         guard let lat = s.weatherLat, let lon = s.weatherLon else {
             now = nil
-            status = "Choose a city in Settings"
+            status = "Choose a place in Settings"
             return
         }
         let newKey = "\(lat),\(lon),\(s.fahrenheit)"
@@ -120,6 +149,7 @@ final class NewsProvider: ObservableObject {
     @Published private(set) var items: [Headline] = []
     @Published private(set) var index = 0
     @Published private(set) var source = ""
+    @Published private(set) var status = ""
     private var fetchedAt = Date.distantPast
     private var feed = ""
     private var loading = false
@@ -140,9 +170,11 @@ final class NewsProvider: ObservableObject {
             defer { self.loading = false }
             guard let result = try? await FeedParser.fetch(url) else {
                 self.failedAt[url] = Date()
+                if self.items.isEmpty { self.status = "Couldn't load this feed" }
                 return
             }
             self.failedAt[url] = nil
+            self.status = ""
             self.items = result.items
             self.source = result.title
             self.index = 0
@@ -151,9 +183,10 @@ final class NewsProvider: ObservableObject {
         }
     }
 
-    func startRotating() {
+    func startRotating(delay: Double = 0) {
         guard rotation == nil else { return }
         rotation = Task { [weak self] in
+            if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 8_000_000_000)
                 guard let self, !Task.isCancelled else { return }

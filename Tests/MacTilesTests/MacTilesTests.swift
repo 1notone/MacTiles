@@ -1241,3 +1241,103 @@ final class HardeningTests: XCTestCase {
         XCTAssertEqual(low.tileScale, 0.8)
     }
 }
+
+// MARK: - 1.13: several News tiles, ZIP codes for weather
+
+final class NewsTilesTests: XCTestCase {
+    func testEachNewsTileCanHaveItsOwnFeed() {
+        let defaultFeed = "https://feeds.example.com/world.xml"
+        let plain = Tile(kind: .news)
+        let tech = Tile(kind: .news, url: "https://example.com/tech.xml", title: "Tech")
+        let techAgain = Tile(kind: .news, url: "https://example.com/tech.xml")
+        let groups = [TileGroup(name: "", tiles: [plain, tech, Tile(kind: .clock)]), TileGroup(name: "", tiles: [techAgain])]
+        XCTAssertEqual(LayoutStore.newsFeed(of: plain, default: defaultFeed), defaultFeed, "no feed of its own → Settings' default")
+        XCTAssertEqual(LayoutStore.newsFeed(of: tech, default: defaultFeed), "https://example.com/tech.xml")
+        XCTAssertEqual(LayoutStore.newsFeeds(in: groups, default: defaultFeed), [defaultFeed, "https://example.com/tech.xml"],
+                       "two tiles on one feed share it")
+    }
+
+    func testNewsTileFeedRoundTrips() throws {
+        let tile = Tile(kind: .news, url: "https://example.com/tech.xml", title: "Tech")
+        let back = try JSONDecoder().decode(Tile.self, from: JSONEncoder().encode(tile))
+        XCTAssertEqual(back.url, "https://example.com/tech.xml")
+        XCTAssertEqual(back.title, "Tech")
+        let old = try JSONDecoder().decode(Tile.self, from: Data(#"{"kind": "news", "size": "wide"}"#.utf8))
+        XCTAssertNil(old.url, "News tiles from earlier versions keep following the default feed")
+    }
+
+    func testFeedDiscoveryFromAWebPage() {
+        let html = """
+        <html><head>
+        <link rel="stylesheet" href="/style.css">
+        <link rel="alternate" type="application/rss+xml" title="All" href="/rss/index.xml">
+        <link rel='alternate' type='application/atom+xml' href='https://example.com/atom'>
+        <link rel="alternate" hreflang="fr" href="/fr/">
+        <link rel="alternate" type="application/rss+xml" href="file:///etc/passwd">
+        </head></html>
+        """
+        let feeds = FeedParser.discoverFeeds(in: html, base: URL(string: "https://www.example.com/news/")!)
+        XCTAssertEqual(feeds.map(\.absoluteString), ["https://www.example.com/rss/index.xml", "https://example.com/atom"])
+    }
+
+    func testParseRSS() {
+        let rss = """
+        <rss><channel><title>Example News</title>
+        <item><title>First</title><link>https://example.com/1</link></item>
+        <item><title>Second</title><link>https://example.com/2</link></item>
+        </channel></rss>
+        """
+        let parsed = FeedParser.parse(Data(rss.utf8))
+        XCTAssertEqual(parsed.title, "Example News")
+        XCTAssertEqual(parsed.items.map(\.title), ["First", "Second"])
+        XCTAssertTrue(FeedParser.parse(Data("<html><body>Not a feed</body></html>".utf8)).items.isEmpty)
+    }
+
+    func testPopularFeedsAreWebAddresses() {
+        XCTAssertFalse(NewsFeeds.popular.isEmpty)
+        for feed in NewsFeeds.popular {
+            XCTAssertNotNil(URL(string: feed.url).flatMap { WebLink.isFetchable($0) ? $0 : nil }, feed.name)
+        }
+        XCTAssertEqual(AppSettings().newsFeed, NewsFeeds.defaultFeed)
+    }
+}
+
+final class PostalCodeTests: XCTestCase {
+    func testWhatLooksLikeAPostalCode() {
+        for code in ["60601", "60601-1234", "SW1A 1AA", "10115", "M5V 3L9", "75008"] {
+            XCTAssertTrue(WeatherAPI.looksLikePostalCode(code), code)
+        }
+        for text in ["Lisbon", "New York", "", "12", "Paris 75008 France long"] {
+            XCTAssertFalse(WeatherAPI.looksLikePostalCode(text), text)
+        }
+    }
+
+    func testNormalizing() {
+        XCTAssertEqual(WeatherAPI.normalizePostalCode(" 60601-1234 ", country: "US"), "60601")
+        XCTAssertEqual(WeatherAPI.normalizePostalCode("sw1a   1aa", country: "GB"), "SW1A 1AA")
+        XCTAssertEqual(WeatherAPI.normalizePostalCode("10115", country: nil), "10115")
+    }
+
+    func testPicksThePlaceThatListsTheCode() throws {
+        let json = #"""
+        {"results": [
+          {"name": "Elsewhere", "latitude": 1, "longitude": 2, "country": "United States", "postcodes": ["60999"]},
+          {"name": "Chicago", "latitude": 41.88, "longitude": -87.62, "admin1": "Illinois", "country": "United States",
+           "postcodes": ["60601", "60602"]}
+        ]}
+        """#
+        let place = try XCTUnwrap(WeatherAPI.placeForPostalCode("60601", in: Data(json.utf8)))
+        XCTAssertEqual(place.name, "Chicago")
+        XCTAssertEqual(place.label, "Chicago, Illinois, United States")
+        let gb = #"{"results": [{"name": "London", "latitude": 51.5, "longitude": -0.12, "postcodes": ["SW1A1AA"]}]}"#
+        XCTAssertEqual(try WeatherAPI.placeForPostalCode("SW1A 1AA", in: Data(gb.utf8))?.name, "London")
+        XCTAssertNil(try WeatherAPI.placeForPostalCode("00000", in: Data(#"{}"#.utf8)))
+    }
+
+    func testPostalCodeIsSaved() throws {
+        var s = AppSettings()
+        s.weatherPostalCode = "60601"
+        let back = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(back.weatherPostalCode, "60601")
+    }
+}

@@ -2,6 +2,18 @@
 
 All notable changes to MacTiles. Each release's section becomes its GitHub release notes.
 
+## [1.13.0] - 2026-11-06
+
+### Added
+- **Several News tiles, each with its own source.** *Add Live Tile → News* now asks which feed to show, with a *Popular feeds* menu (BBC, NPR, The New York Times, The Verge, Ars Technica, Hacker News). Right-click a News tile → *Change Feed…* to switch it, and give it a name if you like. You can type a site's address instead of its feed (`theverge.com`); MacTiles finds the feed. Several News tiles take turns changing headline instead of all at once.
+- **Weather by ZIP / postal code.** Settings → Live tiles has *Or ZIP / postal code* next to *Weather city*; codes are looked up in your Mac's region (*System Settings → General → Language & Region*). Typing a ZIP into the city box works too. The Weather tile's right-click menu has *Change Location…*.
+
+### Fixed
+- **The news feed can be edited again.** Settings → Live tiles → *Default news feed* is a normal text box with an *Apply* button. It's used by News tiles that don't have their own feed (such as the one in the starting layout).
+- A News tile whose feed can't be loaded says so, and clicking it opens *Change Feed…*.
+- Removed a build warning about locking inside ComfyUI's live connection (it would become an error under Swift 6).
+- `make install` can replace a copy of MacTiles that was installed with the installer package (it asks for your password), instead of failing with "Permission denied".
+
 ## [1.12.0] - 2026-11-05
 
 A pre-release review of the whole app: bug fixes, security hardening and consistency.

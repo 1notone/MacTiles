@@ -417,7 +417,8 @@ struct PhotosTile: View {
 @MainActor
 struct NewsTile: View {
     let size: TileSize
-    @EnvironmentObject private var news: NewsProvider
+    @ObservedObject var news: NewsProvider
+    var title: String?          // the tile's own name; otherwise the feed's
 
     private var fontSize: CGFloat {
         switch size {
@@ -425,6 +426,11 @@ struct NewsTile: View {
         case .wide: return 16
         default: return 13
         }
+    }
+
+    private var label: String {
+        if let title, !title.trimmingCharacters(in: .whitespaces).isEmpty { return title }
+        return news.source.isEmpty ? "News" : news.source
     }
 
     var body: some View {
@@ -439,11 +445,16 @@ struct NewsTile: View {
                     .id(headline.id)
                     .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .move(edge: .top)))
             } else {
-                Image(systemName: "newspaper")
-                    .font(.system(size: 26))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 6) {
+                    Image(systemName: "newspaper")
+                        .font(.system(size: 26))
+                    if !news.status.isEmpty, size != .small {
+                        Text(news.status).font(.system(size: 11)).opacity(0.8)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            TileLabel(text: news.source.isEmpty ? "News" : news.source)
+            TileLabel(text: label)
         }
         .clipped()
     }

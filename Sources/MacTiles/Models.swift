@@ -190,7 +190,7 @@ struct Tile: Identifiable, Codable, Hashable {
     var appPath: String?
     var size: TileSize
     var color: String?          // "#RRGGBB"; nil = automatic
-    var url: String?            // web tiles: the address to open
+    var url: String?            // web tiles: the address to open; news tiles: their feed (nil = Settings' default)
     var title: String?          // web and service tiles: the name shown on the tile
     var integrationID: UUID?    // service tiles: which integration (Settings → Integrations)
     var widget: ServiceWidget?  // service tiles: what to show
@@ -313,8 +313,9 @@ struct AppSettings: Codable, Equatable {
     var weatherCity: String?
     var weatherLat: Double?
     var weatherLon: Double?
+    var weatherPostalCode: String?    // set when the place was chosen by ZIP / postal code
     var fahrenheit = Locale.current.measurementSystem == .us
-    var newsFeed = "https://feeds.bbci.co.uk/news/world/rss.xml"
+    var newsFeed = NewsFeeds.defaultFeed   // News tiles without a feed of their own use this one
     var photosFolder = NSHomeDirectory() + "/Pictures"
     var calendarEvents = false
     var keepOnDesktop = true      // Start stays behind your apps, Windows 8 style
@@ -334,7 +335,7 @@ struct AppSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case userName, background, tileScale, iconColoredTiles, hotKey, hotCorner, hotCornerToggles
-        case weatherCity, weatherLat, weatherLon, fahrenheit, newsFeed, photosFolder, calendarEvents
+        case weatherCity, weatherLat, weatherLon, weatherPostalCode, fahrenheit, newsFeed, photosFolder, calendarEvents
         case keepOnDesktop, showInDock, tileShape
         case backgroundStyle, wallpaperFile, liveWallpaper, wallpaperDim
         case tileFinish, glassTint, tileShadow, showRunningIndicator
@@ -357,6 +358,7 @@ struct AppSettings: Codable, Equatable {
         weatherCity = try? c.decodeIfPresent(String.self, forKey: .weatherCity)
         weatherLat = try? c.decodeIfPresent(Double.self, forKey: .weatherLat)
         weatherLon = try? c.decodeIfPresent(Double.self, forKey: .weatherLon)
+        weatherPostalCode = try? c.decodeIfPresent(String.self, forKey: .weatherPostalCode)
         fahrenheit = get(.fahrenheit, d.fahrenheit)
         newsFeed = get(.newsFeed, d.newsFeed)
         photosFolder = get(.photosFolder, d.photosFolder)
