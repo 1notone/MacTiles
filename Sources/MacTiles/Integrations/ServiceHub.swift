@@ -98,6 +98,15 @@ final class ServiceHub: ObservableObject {
         if active { tick() }
     }
 
+    /// A whole new set of integrations (Settings → Import Layout…): reconnect everything.
+    func reload() {
+        for client in clients.values { client.invalidate() }
+        clients.removeAll()
+        status.removeAll()
+        fetchedAt.removeAll()
+        if active { tick() }
+    }
+
     private func fetch(_ tile: Tile) {
         let key = Self.key(tile)
         guard !inFlight.contains(key), let widget = tile.widget else { return }

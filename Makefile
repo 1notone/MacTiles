@@ -1,4 +1,4 @@
-.PHONY: build test app run install release pkg dmg clean signing-cert
+.PHONY: build test app run install release pkg dmg clean signing-cert appstore
 
 # Version for `make release`; defaults to the one in Resources/Info.plist.
 # Builds happen outside the project (see Scripts/paths.sh) so iCloud-synced folders don't break code signing.
@@ -46,6 +46,11 @@ release: test
 	./Scripts/release.sh $(VERSION)
 
 pkg dmg: release
+
+# meTiles, the Mac App Store edition: build/appstore/meTiles-<version>.pkg for Transporter.
+# Needs your App Store certificates and AppStore/meTiles.provisionprofile (see RELEASING.md).
+appstore: test
+	./Scripts/appstore.sh $(VERSION)
 
 clean:
 	rm -rf .build build "$(BUILD_ROOT)"

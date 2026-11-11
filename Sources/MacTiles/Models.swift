@@ -317,6 +317,9 @@ struct AppSettings: Codable, Equatable {
     var fahrenheit = Locale.current.measurementSystem == .us
     var newsFeed = NewsFeeds.defaultFeed   // News tiles without a feed of their own use this one
     var photosFolder = NSHomeDirectory() + "/Pictures"
+    /// App Store edition: the sandbox's permission to read a Photos folder outside Pictures,
+    /// given by choosing it in Settings (a security-scoped bookmark).
+    var photosFolderBookmark: Data?
     var calendarEvents = false
     var keepOnDesktop = true      // Start stays behind your apps, Windows 8 style
     var showInDock = true         // the Dock icon acts as the Start button
@@ -335,7 +338,7 @@ struct AppSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case userName, background, tileScale, iconColoredTiles, hotKey, hotCorner, hotCornerToggles
-        case weatherCity, weatherLat, weatherLon, weatherPostalCode, fahrenheit, newsFeed, photosFolder, calendarEvents
+        case weatherCity, weatherLat, weatherLon, weatherPostalCode, fahrenheit, newsFeed, photosFolder, photosFolderBookmark, calendarEvents
         case keepOnDesktop, showInDock, tileShape
         case backgroundStyle, wallpaperFile, liveWallpaper, wallpaperDim
         case tileFinish, glassTint, tileShadow, showRunningIndicator
@@ -362,6 +365,7 @@ struct AppSettings: Codable, Equatable {
         fahrenheit = get(.fahrenheit, d.fahrenheit)
         newsFeed = get(.newsFeed, d.newsFeed)
         photosFolder = get(.photosFolder, d.photosFolder)
+        photosFolderBookmark = try? c.decodeIfPresent(Data.self, forKey: .photosFolderBookmark)
         calendarEvents = get(.calendarEvents, d.calendarEvents)
         keepOnDesktop = get(.keepOnDesktop, d.keepOnDesktop)
         showInDock = get(.showInDock, d.showInDock)

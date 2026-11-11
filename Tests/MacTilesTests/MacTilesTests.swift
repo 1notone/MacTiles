@@ -1364,3 +1364,21 @@ final class SecretsBundleTests: XCTestCase {
         XCTAssertNil(UUID(uuidString: IntegrationSecrets.bundleAccount), "older items are named by UUID")
     }
 }
+
+// MARK: - 1.15: the App Store edition (meTiles)
+
+final class EditionTests: XCTestCase {
+    func testTheseTestsRunTheGitHubEdition() {
+        XCTAssertFalse(Edition.isAppStore, "make test builds MacTiles; make appstore builds meTiles with -DAPPSTORE")
+        XCTAssertTrue(ServiceKind.docker.addressOptional, "MacTiles can use Docker on this Mac")
+        XCTAssertFalse(ServiceKind.plex.addressOptional)
+    }
+
+    func testPhotosFolderBookmarkIsSaved() throws {
+        var s = AppSettings()
+        s.photosFolderBookmark = Data([1, 2, 3])
+        let back = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(back.photosFolderBookmark, Data([1, 2, 3]))
+        XCTAssertNil(AppSettings().photosFolderBookmark)
+    }
+}

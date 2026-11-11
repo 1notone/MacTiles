@@ -75,7 +75,7 @@ enum ServiceAPI {
     // MARK: - Plex
 
     private static func plexHeaders(_ c: ServiceClient) -> [String: String] {
-        ["X-Plex-Token": c.secret, "X-Plex-Client-Identifier": "MacTiles", "X-Plex-Product": "MacTiles"]
+        ["X-Plex-Token": c.secret, "X-Plex-Client-Identifier": "\(Edition.name)", "X-Plex-Product": "\(Edition.name)"]
     }
 
     private static func plexImage(_ c: ServiceClient, _ path: String?) -> URL? {
@@ -1276,6 +1276,9 @@ enum ServiceAPI {
     /// Either this Mac's Docker socket, or a Docker API address you entered (tcp/http).
     private static func dockerSend(_ c: ServiceClient, _ method: String, _ path: String) async throws -> ServiceClient.Response {
         if c.integration.url.trimmingCharacters(in: .whitespaces).isEmpty {
+            if Edition.isAppStore {
+                throw ServiceError.unreachable("Enter Docker's network address in Settings → Integrations (the App Store edition can't use Docker's socket on this Mac).")
+            }
             guard let socket = UnixSocketHTTP.findDockerSocket() else {
                 throw ServiceError.unreachable("Docker isn't running on this Mac.")
             }

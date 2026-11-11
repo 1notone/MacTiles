@@ -80,6 +80,27 @@ final class LayoutStore: ObservableObject {
 
     func resetLayout() { groups = Self.defaultGroups() }
 
+    /// Settings → Import Layout…: replaces tiles, groups and settings with another layout.json.
+    func importLayout(from url: URL) throws {
+        let file = try JSONDecoder().decode(LayoutFile.self, from: Data(contentsOf: url))
+        var imported = file.settings
+        // A folder chosen in another app (or on another Mac) can't be opened here: fall back to Pictures.
+        if !FileManager.default.isReadableFile(atPath: imported.photosFolder) {
+            imported.photosFolder = AppSettings().photosFolder
+        }
+        imported.photosFolderBookmark = nil
+        settings = imported
+        groups = file.groups.isEmpty ? Self.defaultGroups() : file.groups
+        saveNow()
+    }
+
+    /// Where the Import panel opens: MacTiles' own folder (the real one, outside any sandbox).
+    static var importFolderSuggestion: URL {
+        let home = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
+        let macTiles = URL(fileURLWithPath: home).appendingPathComponent("Library/Application Support/MacTiles", isDirectory: true)
+        return FileManager.default.fileExists(atPath: macTiles.path) ? macTiles : URL(fileURLWithPath: home)
+    }
+
     // MARK: Queries
 
     func locate(_ id: UUID) -> (g: Int, t: Int)? { Self.locate(id, in: groups) }

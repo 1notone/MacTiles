@@ -22,8 +22,8 @@ enum Installer {
 
         NSApp.activate()
         let alert = NSAlert()
-        alert.messageText = "Move MacTiles to your Applications folder?"
-        alert.informativeText = "MacTiles needs to be in Applications to start automatically when you log in and keep your Start screen running."
+        alert.messageText = "Move \(Edition.name) to your Applications folder?"
+        alert.informativeText = "\(Edition.name) needs to be in Applications to start automatically when you log in and keep your Start screen running."
         alert.addButton(withTitle: "Move to Applications")
         alert.addButton(withTitle: "Not Now")
         alert.showsSuppressionButton = true
@@ -40,8 +40,8 @@ enum Installer {
             try fm.copyItem(at: Bundle.main.bundleURL, to: destination)
         } catch {
             let failure = NSAlert(error: error)
-            failure.messageText = "MacTiles couldn't be moved"
-            failure.informativeText = "Drag MacTiles into your Applications folder in Finder instead. (\(error.localizedDescription))"
+            failure.messageText = "\(Edition.name) couldn't be moved"
+            failure.informativeText = "Drag \(Edition.name) into your Applications folder in Finder instead. (\(error.localizedDescription))"
             failure.runModal()
             return false
         }
@@ -75,8 +75,8 @@ enum Installer {
         NSApp.activate()
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Uninstall MacTiles?"
-        alert.informativeText = "MacTiles will stop opening at login, move itself to the Trash and quit."
+        alert.messageText = "Uninstall \(Edition.name)?"
+        alert.informativeText = "\(Edition.name) will stop opening at login, move itself to the Trash and quit."
         alert.addButton(withTitle: "Uninstall")
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
@@ -103,8 +103,8 @@ enum Installer {
                 if error != nil {
                     // Installed by the package as root: let Finder (which can ask for a password) do it.
                     let note = NSAlert()
-                    note.messageText = "Drag MacTiles to the Trash to finish"
-                    note.informativeText = "MacTiles has been removed from your login items. macOS needs your permission to delete the app, so it will be shown in Finder — drag it to the Trash."
+                    note.messageText = "Drag \(Edition.name) to the Trash to finish"
+                    note.informativeText = "\(Edition.name) has been removed from your login items. macOS needs your permission to delete the app, so it will be shown in Finder — drag it to the Trash."
                     note.runModal()
                     NSWorkspace.shared.activateFileViewerSelecting([bundle])
                 }

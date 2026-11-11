@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -16,6 +16,8 @@ jobs:
         run: ./Scripts/privacy-check.sh
       - name: Test
         run: make test
+      - name: Compile the App Store edition (meTiles)
+        run: swift build -c release --arch arm64 -Xswiftc -DAPPSTORE --scratch-path "$RUNNER_TEMP/appstore-build"
       - name: Build unsigned installer
         run: ./Scripts/release.sh 0.0.0-ci
       - uses: actions/upload-artifact@v7

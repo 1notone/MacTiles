@@ -11,6 +11,7 @@ xcuserdata/
 *.cer
 *.mobileprovision
 *.provisionprofile
+/AppStore/
 AuthKey_*.p8
 .env
 .env.*

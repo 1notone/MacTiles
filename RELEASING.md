@@ -24,6 +24,38 @@ It creates **MacTiles Local Signing** in your login keychain and asks for your p
 
 The certificate never leaves your Mac and is only for your own builds — `make release` still produces ad-hoc (or, with `APP_IDENTITY`, Developer ID) packages for other people. To remove it: Keychain Access → login → My Certificates → **MacTiles Local Signing** → Delete. To build ad-hoc for a moment anyway: `APP_IDENTITY=- make install`.
 
+## Mac App Store (meTiles)
+
+The App Store edition is called **meTiles** and is built from the same code with `make appstore` (what's different, and the App Store Connect text, are in [APPSTORE.md](APPSTORE.md)). It needs your paid Apple Developer membership.
+
+> **Your name is shown on the App Store.** For an individual membership, the app's page lists your legal name as the seller. Only an organization membership (a registered business with a D-U-N-S number) shows a company name instead.
+
+### One-time setup
+
+1. **App ID** — [developer.apple.com](https://developer.apple.com/account) → Certificates, IDs & Profiles → Identifiers → **+** → App IDs → App. Description *meTiles*, **Explicit** Bundle ID, e.g. `io.github.mactiles.metiles`. No extra capabilities are needed.
+2. **Certificates** — Certificates → **+**:
+   - **Apple Distribution** (signs the app)
+   - **Mac Installer Distribution** (signs the upload package; it appears in Keychain Access as *3rd Party Mac Developer Installer*)
+
+   For each: create a request in Keychain Access → Certificate Assistant → *Request a Certificate From a Certificate Authority…* (save to disk), upload it, download the certificate and double-click it.
+3. **Provisioning profile** — Profiles → **+** → *Mac App Store Connect* → choose the App ID and your Apple Distribution certificate → name it *meTiles App Store* → download it and save it in the project as **`AppStore/meTiles.provisionprofile`**. (Git ignores that folder: profiles contain your team's name.)
+4. **App record** — [App Store Connect](https://appstoreconnect.apple.com) → Apps → **+** → New App: platform **macOS**, name **meTiles**, the Bundle ID from step 1, SKU e.g. `metiles`. Fill in the listing from [APPSTORE.md](APPSTORE.md), including the **App Privacy** answers (*Data Not Collected*) and the privacy policy link ([PRIVACY.md](PRIVACY.md) on GitHub).
+5. Install Apple's free **Transporter** app from the Mac App Store.
+
+### Each release
+
+```sh
+make appstore
+```
+
+It tests, builds the sandboxed edition, signs it with your Apple Distribution certificate and the profile, and writes `build/appstore/meTiles-<version>.pkg`. Then:
+
+1. Open **Transporter**, drag the `.pkg` in and click **Deliver**. App Store Connect processes it for a few minutes and emails you.
+2. In App Store Connect → your app → the version (e.g. 1.15.0): under **Build**, choose the build you uploaded; add screenshots and *What's New*.
+3. **Add for Review → Submit**. Review usually takes a day or two; when it's approved the version goes live (or when you release it, if you chose manual release).
+
+Every upload needs a higher build number than the last; `make appstore` uses the number of git commits, so commit before you build. An app signed for the App Store won't open if you copy it to Applications yourself; to try meTiles before it's public, upload it and install it with TestFlight (App Store Connect → your app → TestFlight → add yourself as an internal tester, then open the TestFlight app on this Mac).
+
 ## Publishing on GitHub (first time)
 
 Do this once, from the project folder on your Mac. Nothing here needs your real name or personal email.

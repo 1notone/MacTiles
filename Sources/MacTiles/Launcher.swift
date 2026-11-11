@@ -364,7 +364,7 @@ final class Launcher: ObservableObject {
         if settingsWindow == nil {
             let controller = NSHostingController(rootView: SettingsView().mactilesEnvironment(self))
             let w = NSWindow(contentViewController: controller)
-            w.title = "MacTiles Settings"
+            w.title = "\(Edition.name) Settings"
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.isReleasedWhenClosed = false
             w.center()
@@ -377,7 +377,7 @@ final class Launcher: ObservableObject {
     /// Same items as the SwiftUI right-click menu (BackgroundMenu), for AppKit-level clicks.
     func backgroundMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(ActionMenuItem("MacTiles Settings…") { [weak self] in self?.openSettings() })
+        menu.addItem(ActionMenuItem("\(Edition.name) Settings…") { [weak self] in self?.openSettings() })
         menu.addItem(ActionMenuItem("Change Wallpaper…") { [weak self] in self?.openSettings() })
         menu.addItem(.separator())
         let live = NSMenuItem(title: "Add Live Tile", action: nil, keyEquivalent: "")

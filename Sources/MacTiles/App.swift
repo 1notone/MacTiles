@@ -20,14 +20,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        if Installer.offerMoveIfNeeded() { return }   // relaunching from /Applications
+        // The App Store installs, updates and removes the App Store edition itself, and it only
+        // starts at login once you turn that on in Settings.
+        if !Edition.isAppStore, Installer.offerMoveIfNeeded() { return }   // relaunching from /Applications
 
         let launcher = Launcher()
         self.launcher = launcher
         buildMainMenu()
         buildStatusItem()
         launcher.start()
-        Installer.registerLoginItemOnFirstRun()
+        if !Edition.isAppStore { Installer.registerLoginItemOnFirstRun() }
         saveOnTerminateSignal()
 
         // Windows 8 greets you with Start; so does MacTiles, at login and when opened by hand.
@@ -83,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(item("Show Start", #selector(showStart)))
         appMenu.addItem(item("Show Desktop", #selector(showDesktop)))
         appMenu.addItem(.separator())
-        appMenu.addItem(NSMenuItem(title: "Quit MacTiles", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(NSMenuItem(title: "Quit \(Edition.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         appItem.submenu = appMenu
         main.addItem(appItem)
 
@@ -104,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildStatusItem() {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "square.grid.2x2.fill", accessibilityDescription: "MacTiles")
+        statusItem.button?.image = NSImage(systemSymbolName: "square.grid.2x2.fill", accessibilityDescription: "\(Edition.name)")
 
         let menu = NSMenu()
         menu.addItem(item("Show Start", #selector(showStart)))
@@ -130,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(item("Settings…", #selector(openSettings), key: ","))
         menu.addItem(.separator())
-        menu.addItem(item("Quit MacTiles", #selector(quit), key: "q"))
+        menu.addItem(item("Quit \(Edition.name)", #selector(quit), key: "q"))
         statusItem.menu = menu
         self.statusItem = statusItem
     }

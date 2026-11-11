@@ -185,12 +185,18 @@ Scripts/build-app.sh     builds and signs MacTiles.app (version stamping, harden
 Scripts/paths.sh         build locations (outside the project, safe for iCloud folders)
 Scripts/privacy-check.sh looks for personal data and secrets before you push (also runs in CI)
 Scripts/make-signing-cert.sh a free personal signing certificate for your own builds (make signing-cert)
+Scripts/appstore.sh      meTiles, the Mac App Store edition (make appstore)
+Resources/AppStore/      the App Store edition's sandbox entitlements
 Scripts/release.sh       installer package + disk image, signed, notarized and stapled
 Resources/Installer/     installer pages, Distribution.xml, pre/postinstall scripts
 Tests/MacTilesTests/     unit tests (`make test`)
 ```
 
 How tiles are packed: each group is a run of columns four small-tile units wide. Tiles fill a column top-to-bottom, left-to-right, back-filling gaps with small tiles, and spill into the next column when full — the same flow as the Windows 8.1 Start screen. See `Packer` in `Views/StartTiles.swift`.
+
+## On the Mac App Store
+
+MacTiles is also on its way to the Mac App Store as **meTiles** — the same app, sandboxed, with a few differences listed in [APPSTORE.md](APPSTORE.md). Its privacy policy is [PRIVACY.md](PRIVACY.md).
 
 ## Contributing
 

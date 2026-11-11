@@ -114,8 +114,11 @@ struct QuitMenuItems: View {
     @EnvironmentObject private var running: RunningApps
 
     var body: some View {
-        Button("Quit \(name)") { running.quit(path: path) }
-        Button("Force Quit \(name)…") { confirmForceQuit() }
+        // Sandboxed apps (the App Store edition) aren't allowed to quit other apps.
+        if !Edition.isAppStore {
+            Button("Quit \(name)") { running.quit(path: path) }
+            Button("Force Quit \(name)…") { confirmForceQuit() }
+        }
     }
 
     private func confirmForceQuit() {

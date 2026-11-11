@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 struct SettingsView: View {
@@ -114,7 +115,7 @@ struct SettingsView: View {
                      : "Start appears only when you open it, and disappears when you launch an app.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle("Show MacTiles in the Dock (click it to open Start)", isOn: $store.settings.showInDock)
+                Toggle("Show \(Edition.name) in the Dock (click it to open Start)", isOn: $store.settings.showInDock)
             }
 
             Section("Opening Start") {
@@ -125,7 +126,7 @@ struct SettingsView: View {
                 Toggle("Corner also closes Start and shows the desktop when Start is open", isOn: $store.settings.hotCornerToggles)
                     .disabled(!store.settings.hotCorner)
                     .padding(.leading, 18)
-                Toggle("Open MacTiles at login", isOn: $launchAtLogin)
+                Toggle("Open \(Edition.name) at login", isOn: $launchAtLogin)
                 if !loginError.isEmpty {
                     Text(loginError).font(.caption).foregroundStyle(.secondary)
                 }
@@ -193,10 +194,14 @@ struct SettingsView: View {
                     Button("Show Layout File") {
                         NSWorkspace.shared.activateFileViewerSelecting([LayoutStore.fileURL])
                     }
+                    Button("Import Layout…", action: importLayout)
                     Button("Reset Layout…") { confirmReset = true }
-                    Button("Uninstall MacTiles…") { Installer.confirmAndUninstall() }
+                    // The App Store removes the App Store edition (drag it to the Trash, or use Launchpad).
+                    if !Edition.isAppStore {
+                        Button("Uninstall \(Edition.name)…") { Installer.confirmAndUninstall() }
+                    }
                     Spacer()
-                    Text("MacTiles \(Self.version)").foregroundStyle(.secondary)
+                    Text("\(Edition.name) \(Self.version)").foregroundStyle(.secondary)
                 }
             }
         }
@@ -296,7 +301,7 @@ struct SettingsView: View {
             Text(wallpaperError).font(.caption).foregroundStyle(.red)
         }
         dimRow
-        Text("Pictures, animated GIFs and videos (MP4, MOV, M4V). Videos loop without sound. MacTiles keeps its own copy, so you can move or delete the original.")
+        Text("Pictures, animated GIFs and videos (MP4, MOV, M4V). Videos loop without sound. \(Edition.name) keeps its own copy, so you can move or delete the original.")
             .font(.caption).foregroundStyle(.secondary)
     }
 
@@ -337,7 +342,7 @@ struct SettingsView: View {
         panel.directoryURL = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
         guard panel.runModal() == .OK, let url = panel.url else { return }
         guard Wallpapers.kind(of: url) != nil else {
-            wallpaperError = "MacTiles can't use this kind of file. Choose a picture or a video."
+            wallpaperError = "\(Edition.name) can't use this kind of file. Choose a picture or a video."
             return
         }
         wallpaperError = ""
@@ -431,6 +436,38 @@ struct SettingsView: View {
         }
     }
 
+    /// Replaces the tiles and settings with another layout.json — a backup, or MacTiles' own when
+    /// moving to the App Store edition (meTiles). Service passwords and keys aren't in the file.
+    private func importLayout() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        panel.message = "Choose a layout.json. MacTiles keeps its own in ~/Library/Application Support/MacTiles (press ⌘⇧. to show hidden folders)."
+        panel.directoryURL = LayoutStore.importFolderSuggestion
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let alert = NSAlert()
+        alert.messageText = "Replace your tiles and settings with this layout?"
+        alert.informativeText = "Your current tiles, groups and settings are replaced. Service passwords and API keys aren't part of a layout file: enter them again in Settings → Integrations."
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try store.importLayout(from: url)
+            cityQuery = store.settings.weatherCity ?? ""
+            postalQuery = store.settings.weatherPostalCode ?? ""
+            newsFeedDraft = store.settings.newsFeed
+            launcher.services.reload()
+            launcher.hub.liveSettingsChanged(active: launcher.tilesLive)
+        } catch {
+            let failure = NSAlert()
+            failure.messageText = "That file couldn't be read as a layout"
+            failure.informativeText = error.localizedDescription
+            failure.runModal()
+        }
+    }
+
     private func choosePhotosFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -438,6 +475,7 @@ struct SettingsView: View {
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: store.settings.photosFolder)
         if panel.runModal() == .OK, let url = panel.url {
+            store.settings.photosFolderBookmark = FolderAccess.bookmark(for: url)   // App Store edition
             store.settings.photosFolder = url.path
             launcher.hub.liveSettingsChanged(active: launcher.tilesLive)
         }
@@ -448,7 +486,7 @@ struct SettingsView: View {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             loginError = ""
         } catch {
-            loginError = "macOS didn't allow this (\(error.localizedDescription)). Move MacTiles to /Applications and try again."
+            loginError = "macOS didn't allow this (\(error.localizedDescription)). Move \(Edition.name) to /Applications and try again."
         }
     }
 }

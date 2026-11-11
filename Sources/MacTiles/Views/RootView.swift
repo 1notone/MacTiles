@@ -164,7 +164,7 @@ struct HeaderView: View {
             Button { launcher.addServiceTile() } label: { Label("Add Service Tile…", systemImage: "server.rack") }
             Divider()
             Button("Settings…") { launcher.openSettings() }
-            Button("Quit MacTiles") { NSApp.terminate(nil) }
+            Button("Quit \(Edition.name)") { NSApp.terminate(nil) }
         } label: {
             Image(systemName: "ellipsis")
         }
@@ -204,7 +204,7 @@ struct BackgroundMenu: View {
     @EnvironmentObject private var launcher: Launcher
 
     var body: some View {
-        Button("MacTiles Settings…") { launcher.openSettings() }
+        Button("\(Edition.name) Settings…") { launcher.openSettings() }
         Button("Change Wallpaper…") { launcher.openSettings() }
         Divider()
         Menu("Add Live Tile") {

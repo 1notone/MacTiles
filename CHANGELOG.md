@@ -2,6 +2,19 @@
 
 All notable changes to MacTiles. Each release's section becomes its GitHub release notes.
 
+## [1.15.0] - 2026-11-10
+
+Getting ready for the Mac App Store, where the app will be called **meTiles**.
+
+### Added
+- **`make appstore`** builds meTiles, the Mac App Store edition: sandboxed, signed with your App Store certificates and packaged for Apple's Transporter app. See RELEASING.md → *Mac App Store (meTiles)* and APPSTORE.md (listing text, review notes and what's different in that edition).
+- **Settings → Import Layout…** replaces your tiles and settings with another `layout.json` — a backup, or your MacTiles layout when you move to meTiles. Service keys aren't in the file and need entering again.
+- PRIVACY.md, the privacy policy the App Store asks for (it applies to both editions: no data is collected).
+
+### Changed
+- The app's name in menus, Settings and messages comes from the build, so the App Store edition says meTiles throughout.
+- CI also compiles the App Store edition, and runs once per push to `main` instead of once per branch.
+
 ## [1.14.0] - 2026-11-10
 
 Fewer password prompts.

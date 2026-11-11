@@ -68,7 +68,7 @@ final class LiveHub: ObservableObject {
             refreshStale()
             if store.has(.system) { system.start() }
             if store.has(.battery) { battery.start() }
-            if store.has(.photos) { photos.start(folder: store.settings.photosFolder) }
+            if store.has(.photos) { photos.start(folder: FolderAccess.photosFolder(store.settings)) }
             refreshLocal()
             // With "Keep Start on the desktop", Start can stay on screen for hours; keep the
             // weather, news, calendar and Desktop tiles current while it does.
@@ -102,7 +102,7 @@ final class LiveHub: ObservableObject {
     /// now, not the next time Start opens.
     func liveSettingsChanged(active: Bool) {
         refreshStale()
-        if active, store.has(.photos) { photos.start(folder: store.settings.photosFolder) }
+        if active, store.has(.photos) { photos.start(folder: FolderAccess.photosFolder(store.settings)) }
     }
 }
 

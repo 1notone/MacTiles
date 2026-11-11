@@ -114,14 +114,15 @@ enum ServiceKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .truenas: return "https://truenas.local"
         case .unraid: return "http://tower.local"
         case .glances: return "http://192.168.1.10:61208"
-        case .docker: return "Leave empty for this Mac's Docker"
+        case .docker: return Edition.isAppStore ? "http://nas.local:2375" : "Leave empty for this Mac's Docker"
         case .beszel: return "http://192.168.1.10:8090"
         case .comfyui: return "http://192.168.1.10:8188"
         }
     }
 
-    /// Docker can run on this Mac with no address at all.
-    var addressOptional: Bool { self == .docker }
+    /// Docker can run on this Mac with no address at all — except in the App Store edition,
+    /// whose sandbox can't open Docker's local socket file.
+    var addressOptional: Bool { self == .docker && !Edition.isAppStore }
 
     /// The name of the account field, if the service has one.
     var usernameLabel: String? {
@@ -187,8 +188,12 @@ enum ServiceKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .unraid: return "Settings → Management Access → API Keys (Unraid 7.2 or the Unraid Connect plugin)."
         case .glances: return "Run Glances in web server mode: glances -w. The REST API is on port 61208."
         case .beszel: return "The email and password you sign in to Beszel with — a regular user (sees the systems shared with it) or a superuser."
-        case .comfyui: return "No key needed: MacTiles uses ComfyUI's own API. To reach it from another machine, start ComfyUI with --listen. Install the ComfyUI-Crystools custom node to add GPU load, GPU temperature and CPU."
-        case .docker: return "Uses Docker Desktop, OrbStack or Colima on this Mac. For another machine, enter its Docker API address, like http://nas.local:2375."
+        case .comfyui: return "No key needed: \(Edition.name) uses ComfyUI's own API. To reach it from another machine, start ComfyUI with --listen. Install the ComfyUI-Crystools custom node to add GPU load, GPU temperature and CPU."
+        case .docker:
+            if Edition.isAppStore {
+                return "Enter the Docker API address of the machine running Docker, like http://nas.local:2375 (or a docker-socket-proxy). The App Store edition can't open Docker's socket on this Mac."
+            }
+            return "Uses Docker Desktop, OrbStack or Colima on this Mac. For another machine, enter its Docker API address, like http://nas.local:2375."
         }
     }
 
@@ -485,7 +490,7 @@ enum IntegrationSecrets {
         var add = match
         add[kSecValueData] = data
         add[kSecAttrLabel] = "MacTiles service keys"
-        add[kSecAttrDescription] = "Passwords and API keys for MacTiles' service tiles"
+        add[kSecAttrDescription] = "Passwords and API keys for \(Edition.name)' service tiles"
         add[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlock
         guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { return false }
         store.exists = true

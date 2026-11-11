@@ -20,7 +20,7 @@ struct IntegrationsSection: View {
     var body: some View {
         Section {
             if store.settings.integrations.isEmpty {
-                Text("Connect Plex, Jellyfin, Sonarr, Pi-hole, Home Assistant, Proxmox, Docker and more. MacTiles talks to each one directly — no Homarr needed.")
+                Text("Connect Plex, Jellyfin, Sonarr, Pi-hole, Home Assistant, Proxmox, Docker and more. \(Edition.name) talks to each one directly — no Homarr needed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

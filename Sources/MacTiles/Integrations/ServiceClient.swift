@@ -95,7 +95,7 @@ struct JSON {
 
     init(data: Data) throws {
         do { raw = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) }
-        catch { throw ServiceError.unexpected("The service didn't send the data MacTiles expected.") }
+        catch { throw ServiceError.unexpected("The service didn't send the data \(Edition.name) expected.") }
     }
 
     subscript(key: String) -> JSON { JSON((raw as? [String: Any])?[key]) }
@@ -240,7 +240,7 @@ final class ServiceClient: NSObject, URLSessionTaskDelegate, @unchecked Sendable
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("MacTiles", forHTTPHeaderField: "User-Agent")
+        request.setValue("\(Edition.name)", forHTTPHeaderField: "User-Agent")
         for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
         if let json {
             request.httpBody = try JSONSerialization.data(withJSONObject: json)
@@ -322,7 +322,7 @@ final class ServiceClient: NSObject, URLSessionTaskDelegate, @unchecked Sendable
               to.caseInsensitiveCompare(from) != .orderedSame, let url = request.url else { return request }
         var safe = URLRequest(url: url)
         safe.httpMethod = "GET"
-        safe.setValue("MacTiles", forHTTPHeaderField: "User-Agent")
+        safe.setValue("\(Edition.name)", forHTTPHeaderField: "User-Agent")
         safe.setValue(request.value(forHTTPHeaderField: "Accept"), forHTTPHeaderField: "Accept")
         safe.httpShouldHandleCookies = true      // cookies are scoped to their own domain by URLSession
         return safe
@@ -495,7 +495,7 @@ enum UnixSocketHTTP {
 
     static func requestSync(socket path: String, method: String, target: String, timeout: Int) throws -> ServiceClient.Response {
         guard isSafeRequest(method: method, target: target) else {
-            throw ServiceError.unexpected("MacTiles refused an unusual Docker request.")
+            throw ServiceError.unexpected("\(Edition.name) refused an unusual Docker request.")
         }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw ServiceError.unreachable("Couldn't open a socket.") }
@@ -540,7 +540,7 @@ enum UnixSocketHTTP {
             if n > 0 { reply.append(contentsOf: buffer[0..<n]) } else { break }
             if reply.count > 8_000_000 { break }
         }
-        guard let parsed = parse(reply) else { throw ServiceError.unexpected("Docker sent a reply MacTiles couldn't read.") }
+        guard let parsed = parse(reply) else { throw ServiceError.unexpected("Docker sent a reply \(Edition.name) couldn't read.") }
         return parsed
     }
 
