@@ -1,4 +1,4 @@
-.PHONY: build test app run install release pkg dmg clean
+.PHONY: build test app run install release pkg dmg clean signing-cert
 
 # Version for `make release`; defaults to the one in Resources/Info.plist.
 # Builds happen outside the project (see Scripts/paths.sh) so iCloud-synced folders don't break code signing.
@@ -19,9 +19,16 @@ app:
 run: app
 	open "$(APP)"
 
+# One time: a free personal code-signing certificate, so the Keychain (and Local Network
+# permission) recognise each new build as the same app. See RELEASING.md → "Fewer password prompts".
+signing-cert:
+	./Scripts/make-signing-cert.sh
+
 # Builds, copies to /Applications and launches (for development on this Mac).
 install: app
 	-osascript -e 'quit app "MacTiles"' 2>/dev/null
+	@# Quitting takes a moment; wait (up to 5 s) so the new copy isn't opened while the old one is closing.
+	@for i in $$(seq 1 25); do pgrep -xq MacTiles || break; sleep 0.2; done
 	@# A copy put there by the installer package belongs to the system: replacing it needs your password.
 	@if [ -e /Applications/MacTiles.app ] && [ ! -w /Applications/MacTiles.app ]; then \
 		echo "MacTiles in /Applications was installed by the installer package; enter your password to replace it."; \
@@ -30,7 +37,7 @@ install: app
 		rm -rf /Applications/MacTiles.app; \
 	fi
 	ditto "$(APP)" /Applications/MacTiles.app
-	open /Applications/MacTiles.app
+	@open /Applications/MacTiles.app || { sleep 2; open /Applications/MacTiles.app; }
 	@echo "Installed to /Applications/MacTiles.app"
 
 # Installer package + disk image + checksums in build/release/.

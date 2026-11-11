@@ -6,6 +6,24 @@ Without a membership you can still run `make release`. You get an unsigned packa
 
 ---
 
+## Fewer password prompts for your own builds
+
+Builds you make yourself (`make install`) are signed **ad-hoc** by default: a throwaway signature that's different every time. To macOS each new build is a different app, so it asks for your password again before MacTiles can read its service keys from the Keychain, and it may forget the Local Network permission.
+
+Fix it once with a free personal signing certificate (no Apple Developer account needed):
+
+```sh
+make signing-cert
+```
+
+It creates **MacTiles Local Signing** in your login keychain and asks for your password once, to trust it for code signing. From then on `make install` (and `make app` / `make run`) sign with it automatically, and macOS treats every new build as the same app:
+
+- The first time the newly signed build reads your service keys, macOS asks once: enter your password and click **Always Allow**. After that, updates don't ask.
+- If macOS asks whether `codesign` may use the key "MacTiles Local Signing" during a build, click **Always Allow** too.
+- If a service tile shows a strange connection error right after you switch, toggle MacTiles off and on in **System Settings → Privacy & Security → Local Network** once.
+
+The certificate never leaves your Mac and is only for your own builds — `make release` still produces ad-hoc (or, with `APP_IDENTITY`, Developer ID) packages for other people. To remove it: Keychain Access → login → My Certificates → **MacTiles Local Signing** → Delete. To build ad-hoc for a moment anyway: `APP_IDENTITY=- make install`.
+
 ## Publishing on GitHub (first time)
 
 Do this once, from the project folder on your Mac. Nothing here needs your real name or personal email.

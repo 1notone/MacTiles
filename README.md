@@ -72,7 +72,7 @@ The same kinds of widgets [Homarr](https://homarr.dev) offers, as Metro tiles on
 
 Connect a service in **Settings → Integrations → Add Service…** (there's a Test Connection button), then right-click an empty spot on Start → **Add Service Tile…**. Each tile picks a service, what to show, and a name; right-click it to refresh, pause, toggle or edit. Clicking a tile opens the service's web page.
 
-- Passwords, tokens and API keys are stored in your **Keychain**, never in `layout.json`. (If you build MacTiles yourself with ad-hoc signing, macOS may ask once after each rebuild whether MacTiles can read them.)
+- Passwords, tokens and API keys are stored in your **Keychain**, never in `layout.json` — all in one Keychain item, so macOS asks at most once (not once per service) whether a new version may read them. If you build MacTiles yourself, run `make signing-cert` once and it won't ask after updates at all (see [RELEASING.md](RELEASING.md#fewer-password-prompts-for-your-own-builds)).
 - Self-signed certificates — the norm for Proxmox, UniFi, OPNsense and TrueNAS — are accepted only for services where you turn on *Allow self-signed certificate*, and only from that service's own server (not from sites it links to or redirects to).
 - Keys and tokens are never forwarded when a service redirects to a different server. The editor warns you if an address is plain HTTP and not on your local network, since the key would travel unencrypted.
 - macOS will ask once for **Local Network** access the first time MacTiles talks to a service on your network.
@@ -184,6 +184,7 @@ Sources/MacTiles/
 Scripts/build-app.sh     builds and signs MacTiles.app (version stamping, hardened runtime)
 Scripts/paths.sh         build locations (outside the project, safe for iCloud folders)
 Scripts/privacy-check.sh looks for personal data and secrets before you push (also runs in CI)
+Scripts/make-signing-cert.sh a free personal signing certificate for your own builds (make signing-cert)
 Scripts/release.sh       installer package + disk image, signed, notarized and stapled
 Resources/Installer/     installer pages, Distribution.xml, pre/postinstall scripts
 Tests/MacTilesTests/     unit tests (`make test`)

@@ -1341,3 +1341,26 @@ final class PostalCodeTests: XCTestCase {
         XCTAssertEqual(back.weatherPostalCode, "60601")
     }
 }
+
+// MARK: - 1.14: one Keychain item for all service keys
+
+final class SecretsBundleTests: XCTestCase {
+    func testRoundTrip() {
+        let a = UUID(), b = UUID()
+        let data = IntegrationSecrets.encode([a: "plex-token", b: "p@ss \"word\" ✓"])
+        XCTAssertEqual(IntegrationSecrets.decode(data), [a: "plex-token", b: "p@ss \"word\" ✓"])
+        XCTAssertEqual(IntegrationSecrets.decode(IntegrationSecrets.encode([:])), [:])
+    }
+
+    func testDecodingIsForgiving() {
+        let good = UUID()
+        let json = #"{"version": 1, "secrets": {"\#(good.uuidString)": "key", "not-a-uuid": "x", "\#(UUID().uuidString)": ""}}"#
+        XCTAssertEqual(IntegrationSecrets.decode(Data(json.utf8)), [good: "key"], "bad IDs and empty values are dropped")
+        XCTAssertNil(IntegrationSecrets.decode(Data("garbage".utf8)))
+        XCTAssertNil(IntegrationSecrets.decode(Data(#"{"version": 1}"#.utf8)))
+    }
+
+    func testTheSharedItemCantCollideWithAServiceItem() {
+        XCTAssertNil(UUID(uuidString: IntegrationSecrets.bundleAccount), "older items are named by UUID")
+    }
+}

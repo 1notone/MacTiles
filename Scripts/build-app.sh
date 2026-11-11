@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Builds MacTiles.app for Apple silicon (arm64) into ~/Library/Caches/MacTiles-build (see paths.sh).
 #
-#   ./Scripts/build-app.sh                       local build, ad-hoc signed
+#   ./Scripts/build-app.sh                       local build (see "Signing" below)
 #   VERSION=1.0.0 ./Scripts/build-app.sh         stamp a version
 #   APP_IDENTITY="Developer ID Application: Jane Doe (TEAMID)" ./Scripts/build-app.sh
 #                                                release build: hardened runtime, secure timestamp
+#
+# Signing: APP_IDENTITY wins. Otherwise, if you've made a personal signing certificate with
+# `make signing-cert`, local builds use it, so the Keychain recognises each new build as the same
+# app and doesn't ask for your password again after updates. Without either, builds are ad-hoc.
 #
 # VERSION defaults to the version in Resources/Info.plist; BUILD defaults to the git commit count.
 set -euo pipefail
@@ -15,7 +19,16 @@ source Scripts/paths.sh
 CONFIG="${CONFIG:-release}"
 PLIST_SRC="Resources/Info.plist"
 ENTITLEMENTS="Resources/MacTiles.entitlements"
-IDENTITY="${APP_IDENTITY:-${SIGN_IDENTITY:--}}"
+LOCAL_IDENTITY="MacTiles Local Signing"     # made by Scripts/make-signing-cert.sh
+IDENTITY="${APP_IDENTITY:-${SIGN_IDENTITY:-}}"
+if [ -z "$IDENTITY" ]; then
+  identities="$(security find-identity -p codesigning 2>/dev/null || true)"
+  if grep -q "\"$LOCAL_IDENTITY\"" <<<"$identities"; then
+    IDENTITY="$LOCAL_IDENTITY"
+  else
+    IDENTITY="-"
+  fi
+fi
 
 plist_get() { /usr/libexec/PlistBuddy -c "Print :$1" "$2"; }
 plist_set() { /usr/libexec/PlistBuddy -c "Set :$1 $2" "$3"; }
@@ -43,8 +56,12 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 xattr -cr "$APP"
 
 if [ "$IDENTITY" = "-" ]; then
-  echo "→ Signing ad-hoc (local use only; set APP_IDENTITY for a distributable build)"
+  echo "→ Signing ad-hoc (local use only; run 'make signing-cert' once so updates keep Keychain access)"
   codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP"
+elif [ "$IDENTITY" = "$LOCAL_IDENTITY" ]; then
+  # A personal certificate: same signature identity every build, for this Mac only.
+  echo "→ Signing with your personal certificate ($LOCAL_IDENTITY)"
+  codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP"
 else
   echo "→ Signing with: $IDENTITY"
   codesign --force --options runtime --timestamp \

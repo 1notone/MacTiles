@@ -2,6 +2,18 @@
 
 All notable changes to MacTiles. Each release's section becomes its GitHub release notes.
 
+## [1.14.0] - 2026-11-10
+
+Fewer password prompts.
+
+### Changed
+- **All service keys live in one Keychain item.** Before, each connected service had its own item, so after an update macOS asked for your password once per service ("MacTiles wants to use your confidential information…"). Now it asks at most once. The first launch of 1.14 moves your existing keys across: macOS asks once per service one last time, then they're in the single item for good.
+- If reading the Keychain fails (locked, or the prompt was dismissed), MacTiles waits a minute before asking again instead of asking on every refresh.
+- `make install` waits for the running MacTiles to finish quitting before opening the new one (it could fail with "error -600").
+
+### Added
+- **`make signing-cert`** makes a free personal code-signing certificate for builds you make yourself. With it, `make install` signs every build the same way, so macOS recognises updates as the same app: no password prompt for your service keys after an update, and the Local Network permission is more likely to stick. See RELEASING.md → *Fewer password prompts for your own builds*.
+
 ## [1.13.0] - 2026-11-06
 
 ### Added

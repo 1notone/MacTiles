@@ -373,21 +373,145 @@ struct Integration: Identifiable, Codable, Hashable, Sendable {
 
 // MARK: - Keychain
 
-/// Passwords, tokens and API keys for integrations, kept in the login keychain —
-/// never in layout.json.
+/// Service passwords, tokens and API keys, kept in the macOS Keychain — never in layout.json.
+///
+/// They're stored together in **one** Keychain item, so after an update macOS asks at most once
+/// ("MacTiles wants to use your confidential information…"), not once per service. Versions
+/// before 1.14 kept one item per service; those are moved into the shared item the first time
+/// each one is needed.
 enum IntegrationSecrets {
     static let service = "io.github.mactiles.integration"
+    /// The account name of the shared item. (Older per-service items use the integration's UUID.)
+    static let bundleAccount = "MacTiles service keys"
 
-    /// Reading the Keychain can be slow (and may ask once after an update), so values are cached.
-    private final class Cache: @unchecked Sendable {
+    private final class Store: @unchecked Sendable {
         let lock = NSLock()
         var values: [UUID: String] = [:]
+        /// The shared item was read (or found not to exist): `values` is the truth.
+        var loaded = false
+        /// The shared item exists in the Keychain (update it rather than add a new one).
+        var exists = false
+        /// When reading it last failed (locked, or the prompt was dismissed): don't ask again straight away.
+        var failedAt: Date?
     }
-    private static let store = Cache()
+    private static let store = Store()
 
     static func get(_ id: UUID) -> String {
         store.lock.lock(); defer { store.lock.unlock() }
-        if let cached = store.values[id] { return cached }
+        // A locked keychain or a dismissed prompt is asked again next time, instead of leaving
+        // services signed out until MacTiles restarts.
+        guard loadIfNeeded() else { return "" }
+        if let value = store.values[id] { return value }
+        // Saved by an earlier version, one item per service: move it into the shared item.
+        if let legacy = readLegacy(id) {
+            store.values[id] = legacy
+            if save() { deleteLegacy(id) }
+            return legacy
+        }
+        return ""
+    }
+
+    /// Saves (or, with an empty secret, deletes) a service's secret. False if the Keychain refused.
+    @discardableResult
+    static func set(_ secret: String, for id: UUID, name: String = "") -> Bool {
+        store.lock.lock(); defer { store.lock.unlock() }
+        // Never rewrite the shared item without having read it first: that would lose the others.
+        guard loadIfNeeded() else { return false }
+        let previous = store.values[id]
+        if secret.isEmpty { store.values[id] = nil } else { store.values[id] = secret }
+        guard save() else {
+            store.values[id] = previous
+            return false
+        }
+        deleteLegacy(id)
+        return true
+    }
+
+    static func remove(_ id: UUID) { set("", for: id) }
+
+    /// Deletes every MacTiles secret (Uninstall → "Also delete my tiles, settings and saved service keys").
+    static func removeAll() {
+        store.lock.lock(); defer { store.lock.unlock() }
+        store.values.removeAll()
+        store.loaded = false
+        store.exists = false
+        let match: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service]
+        // SecItemDelete removes one item per call on macOS's file-based keychain; repeat until none are left.
+        for _ in 0..<500 where SecItemDelete(match as CFDictionary) == errSecSuccess {}
+    }
+
+    // MARK: The shared item
+
+    /// Reads the shared item once. False if the Keychain couldn't be read just now.
+    private static func loadIfNeeded() -> Bool {
+        if store.loaded { return true }
+        if let failed = store.failedAt, Date().timeIntervalSince(failed) < 60 { return false }
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: bundleAccount,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne,
+        ]
+        var out: CFTypeRef?
+        switch SecItemCopyMatching(query as CFDictionary, &out) {
+        case errSecSuccess:
+            store.values = (out as? Data).flatMap(decode) ?? [:]
+            store.exists = true
+        case errSecItemNotFound:
+            store.values = [:]
+            store.exists = false
+        default:
+            store.failedAt = Date()
+            return false
+        }
+        store.failedAt = nil
+        store.loaded = true
+        return true
+    }
+
+    private static func save() -> Bool {
+        let match: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: bundleAccount,
+        ]
+        let data = encode(store.values)
+        if store.exists {
+            let status = SecItemUpdate(match as CFDictionary, [kSecValueData: data] as CFDictionary)
+            if status == errSecSuccess { return true }
+            guard status == errSecItemNotFound else { return false }   // deleted behind our back: add it again
+        }
+        var add = match
+        add[kSecValueData] = data
+        add[kSecAttrLabel] = "MacTiles service keys"
+        add[kSecAttrDescription] = "Passwords and API keys for MacTiles' service tiles"
+        add[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlock
+        guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { return false }
+        store.exists = true
+        return true
+    }
+
+    /// {"version": 1, "secrets": {"<integration UUID>": "<secret>"}}
+    static func encode(_ values: [UUID: String]) -> Data {
+        let secrets = Dictionary(uniqueKeysWithValues: values.map { ($0.key.uuidString, $0.value) })
+        let object: [String: Any] = ["version": 1, "secrets": secrets]
+        return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+    }
+
+    static func decode(_ data: Data) -> [UUID: String]? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let secrets = object["secrets"] as? [String: String] else { return nil }
+        var values: [UUID: String] = [:]
+        for (key, value) in secrets {
+            if let id = UUID(uuidString: key), !value.isEmpty { values[id] = value }
+        }
+        return values
+    }
+
+    // MARK: Items from MacTiles 1.13 and earlier (one per service)
+
+    private static func readLegacy(_ id: UUID) -> String? {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
@@ -396,49 +520,17 @@ enum IntegrationSecrets {
             kSecMatchLimit: kSecMatchLimitOne,
         ]
         var out: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &out)
-        let value = (status == errSecSuccess ? (out as? Data).flatMap { String(data: $0, encoding: .utf8) } : nil) ?? ""
-        // Only remember a definite answer. A locked keychain or a dismissed prompt is asked again
-        // next time, instead of leaving the service signed out until MacTiles restarts.
-        if status == errSecSuccess || status == errSecItemNotFound { store.values[id] = value }
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+              let data = out as? Data, let value = String(data: data, encoding: .utf8), !value.isEmpty else { return nil }
         return value
     }
 
-    /// Saves (or, with an empty secret, deletes) a service's secret. False if the Keychain refused.
-    @discardableResult
-    static func set(_ secret: String, for id: UUID, name: String = "") -> Bool {
-        store.lock.lock(); defer { store.lock.unlock() }
+    private static func deleteLegacy(_ id: UUID) {
         let match: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: id.uuidString,
         ]
-        let deleted = SecItemDelete(match as CFDictionary)
-        guard !secret.isEmpty else {
-            store.values[id] = ""
-            return deleted == errSecSuccess || deleted == errSecItemNotFound
-        }
-        var add = match
-        add[kSecValueData] = Data(secret.utf8)
-        add[kSecAttrLabel] = name.isEmpty ? "MacTiles integration" : "MacTiles: \(name)"
-        add[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlock
-        let status = SecItemAdd(add as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            store.values[id] = nil
-            return false
-        }
-        store.values[id] = secret
-        return true
-    }
-
-    static func remove(_ id: UUID) { set("", for: id) }
-
-    /// Deletes every MacTiles secret (Uninstall → "Also delete my tiles and settings").
-    static func removeAll() {
-        store.lock.lock(); defer { store.lock.unlock() }
-        store.values.removeAll()
-        let match: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service]
-        // SecItemDelete removes one item per call on macOS's file-based keychain; repeat until none are left.
-        for _ in 0..<500 where SecItemDelete(match as CFDictionary) == errSecSuccess {}
+        SecItemDelete(match as CFDictionary)
     }
 }
