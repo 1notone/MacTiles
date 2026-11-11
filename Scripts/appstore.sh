@@ -45,19 +45,41 @@ BUILD="${BUILD:-$(git rev-list --count HEAD 2>/dev/null || plist_get CFBundleVer
 
 profile_plist="$(mktemp)"
 trap 'rm -f "$profile_plist"' EXIT
-security cms -D -i "$PROFILE" > "$profile_plist" 2>/dev/null || fail "Couldn't read $PROFILE."
-TEAM_ID="$(plist_get 'TeamIdentifier:0' "$profile_plist")"
-APP_ID_FULL="$(plist_get 'Entitlements:com.apple.application-identifier' "$profile_plist")"
+security cms -D -i "$PROFILE" > "$profile_plist" 2>/dev/null || fail "Couldn't read $PROFILE. Download the profile again from developer.apple.com."
+# (Every lookup below falls back to an empty value, so a missing value reaches its own error message
+# instead of silently stopping the script under "set -e".)
+TEAM_ID="$(plist_get 'TeamIdentifier:0' "$profile_plist" 2>/dev/null)" || TEAM_ID=""
+APP_ID_FULL="$(plist_get 'Entitlements:com.apple.application-identifier' "$profile_plist" 2>/dev/null)" || APP_ID_FULL=""
+[ -n "$TEAM_ID" ] && [ -n "$APP_ID_FULL" ] ||
+  fail "$PROFILE isn't a Mac App Store provisioning profile. Create one of type \"Mac App Store Connect\" (see RELEASING.md)."
 BUNDLE_ID="${APP_ID_FULL#"$TEAM_ID".}"
-[ -n "$TEAM_ID" ] && [ -n "$BUNDLE_ID" ] && [ "$BUNDLE_ID" != "*" ] ||
+[ -n "$BUNDLE_ID" ] && [ "$BUNDLE_ID" != "*" ] ||
   fail "The provisioning profile must be for one explicit App ID (like io.github.mactiles.metiles), not a wildcard."
 
-identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
-APP_IDENTITY="${APPSTORE_APP_IDENTITY:-$(grep -Eo '"(Apple Distribution|3rd Party Mac Developer Application): [^"]*\('"$TEAM_ID"'\)"' <<<"$identities" | head -1 | tr -d '"')}"
-[ -n "$APP_IDENTITY" ] || fail "No \"Apple Distribution\" certificate for team $TEAM_ID in your keychain (see RELEASING.md)."
-installers="$(security find-identity -v 2>/dev/null || true)"
-INSTALLER_IDENTITY="${APPSTORE_INSTALLER_IDENTITY:-$(grep -Eo '"(3rd Party Mac Developer Installer|Mac Installer Distribution): [^"]*\('"$TEAM_ID"'\)"' <<<"$installers" | head -1 | tr -d '"')}"
-[ -n "$INSTALLER_IDENTITY" ] || fail "No \"3rd Party Mac Developer Installer\" (Mac Installer Distribution) certificate for team $TEAM_ID in your keychain (see RELEASING.md)."
+# Lists what's in the keychain when a certificate is missing, so it's clear what to fix.
+show_certificates() {
+  local found
+  found="$(security find-identity -v 2>/dev/null | grep -E 'Apple Distribution|Mac Developer|Installer|Developer ID' || true)"
+  if [ -n "$found" ]; then
+    printf '\nSigning certificates in your keychain (this profile is for team %s):\n%s\n' "$TEAM_ID" "$found" >&2
+  else
+    printf '\nThere are no usable signing certificates in your keychain. In Xcode: Settings → Accounts → your team → Manage Certificates… → +.\n' >&2
+  fi
+}
+
+APP_IDENTITY="${APPSTORE_APP_IDENTITY:-}"
+if [ -z "$APP_IDENTITY" ]; then
+  APP_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null |
+    grep -Eo '"(Apple Distribution|3rd Party Mac Developer Application): [^"]*\('"$TEAM_ID"'\)"' | head -1 | tr -d '"' || true)"
+fi
+[ -n "$APP_IDENTITY" ] || { show_certificates; fail "No \"Apple Distribution\" certificate for team $TEAM_ID in your keychain (see RELEASING.md)."; }
+
+INSTALLER_IDENTITY="${APPSTORE_INSTALLER_IDENTITY:-}"
+if [ -z "$INSTALLER_IDENTITY" ]; then
+  INSTALLER_IDENTITY="$(security find-identity -v 2>/dev/null |
+    grep -Eo '"(3rd Party Mac Developer Installer|Mac Installer Distribution): [^"]*\('"$TEAM_ID"'\)"' | head -1 | tr -d '"' || true)"
+fi
+[ -n "$INSTALLER_IDENTITY" ] || { show_certificates; fail "No \"Mac Installer Distribution\" (3rd Party Mac Developer Installer) certificate for team $TEAM_ID in your keychain (see RELEASING.md)."; }
 
 echo "meTiles $VERSION ($BUILD) · $BUNDLE_ID · team $TEAM_ID"
 
@@ -92,7 +114,8 @@ plist_add com.apple.application-identifier string "$TEAM_ID.$BUNDLE_ID" "$entitl
 plist_add com.apple.developer.team-identifier string "$TEAM_ID" "$entitlements"
 codesign --force --options runtime --timestamp --entitlements "$entitlements" --sign "$APP_IDENTITY" "$STORE_APP"
 codesign --verify --strict --verbose=2 "$STORE_APP"
-codesign -d --entitlements - "$STORE_APP" 2>/dev/null | grep -q "com.apple.security.app-sandbox" || fail "The app isn't sandboxed."
+signed_entitlements="$(codesign -d --entitlements - "$STORE_APP" 2>/dev/null || true)"
+grep -q "com.apple.security.app-sandbox" <<<"$signed_entitlements" || fail "The app isn't sandboxed."
 
 # --- Package ----------------------------------------------------------------------------
 say "Packaging for App Store Connect"
